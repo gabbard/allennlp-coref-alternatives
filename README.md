@@ -1,3 +1,6 @@
+This is a fork of the AllenNLP repository for doing some experiments with coreference alternatives.
+
+
 <p align="center"><img width="40%" src="doc/static/allennlp-logo-dark.png" /></p>
 
 [![Build Status](http://build.allennlp.org/app/rest/builds/buildType:(id:AllenNLP_AllenNLPCommits)/statusIcon)](http://build.allennlp.org/viewType.html?buildTypeId=AllenNLP_AllenNLPCommits&guest=1)

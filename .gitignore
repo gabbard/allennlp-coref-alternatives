@@ -37,3 +37,9 @@ __pycache__
 
 .coverage
 .pytest_cache/
+
+# Mac OS metadata
+.DS_Store
+
+# PyCharm files
+.idea/

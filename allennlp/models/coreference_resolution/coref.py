@@ -150,7 +150,7 @@ class CoreferenceResolver(Model):
             A tensor of shape ``(batch_size, num_spans_to_keep, 1 + max_antecedents)`` giving
             the antecedent scores for each mention.  Each i-th batch element is associated with a
             matrix whose the j-th row contains the antecedent scores for the j-th mention of that
-            batch (corresponding to top_spans).  The column k-th column contains the score for
+            batch (corresponding to top_spans), and k-th column contains the score for
             the (k-1)-th mention being the antecedent of the j-th mention. The first column
             (index 0) contains the score for the j-th mention having no antecedent.
         loss : ``torch.FloatTensor``, optional

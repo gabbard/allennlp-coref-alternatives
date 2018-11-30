@@ -6,6 +6,7 @@ import torch
 import torch.nn.functional as F
 from overrides import overrides
 
+from allennlp.common.util import ScatterableList
 from allennlp.data import Vocabulary
 from allennlp.models.model import Model
 from allennlp.modules.token_embedders import Embedding
@@ -112,6 +113,7 @@ class CoreferenceResolver(Model):
                 text: Dict[str, torch.LongTensor],
                 spans: torch.IntTensor,
                 span_labels: torch.IntTensor = None,
+                keep_antecedent_alternatives: Optional[ScatterableList] = None,
                 metadata: List[Dict[str, Any]] = None) -> Dict[str, torch.Tensor]:
         # pylint: disable=arguments-differ
         """
@@ -127,6 +129,9 @@ class CoreferenceResolver(Model):
         span_labels : ``torch.IntTensor``, optional (default = None)
             A tensor of shape (batch_size, num_spans), representing the cluster ids
             of each span, or -1 for those which do not appear in any clusters.
+        output_alternative_antecedents: ``Optional[ScatterableList]`` - if non-`None` and
+            containing the single value ``True``, the output dictionary will contain antecedent
+            scores.
 
         Returns
         -------
@@ -141,6 +146,13 @@ class CoreferenceResolver(Model):
             A tensor of shape ``(batch_size, num_spans_to_keep)`` representing, for each top span, the
             index (with respect to antecedent_indices) of the most likely antecedent. -1 means there
             was no predicted link.
+        antecedent_scores : ``torch.FloatTensor``, optional
+            A tensor of shape ``(batch_size, num_spans_to_keep, 1 + max_antecedents)`` giving
+            the antecedent scores for each mention.  Each i-th batch element is associated with a
+            matrix whose the j-th row contains the antecedent scores for the j-th mention of that
+            batch (corresponding to top_spans).  The column k-th column contains the score for
+            the (k-1)-th mention being the antecedent of the j-th mention. The first column
+            (index 0) contains the score for the j-th mention having no antecedent.
         loss : ``torch.FloatTensor``, optional
             A scalar loss to be optimised.
         """
@@ -252,6 +264,9 @@ class CoreferenceResolver(Model):
         output_dict = {"top_spans": top_spans,
                        "antecedent_indices": valid_antecedent_indices,
                        "predicted_antecedents": predicted_antecedents}
+        if keep_antecedent_alternatives and any(keep_antecedent_alternatives):
+            output_dict["antecedent_scores"] = coreference_scores
+
         if span_labels is not None:
             # Find the gold labels for the spans which we kept.
             pruned_gold_labels = util.batched_index_select(span_labels.unsqueeze(-1),

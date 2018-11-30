@@ -130,7 +130,7 @@ class CoreferenceResolver(Model):
             A tensor of shape (batch_size, num_spans), representing the cluster ids
             of each span, or -1 for those which do not appear in any clusters.
         output_alternative_antecedents: ``Optional[ScatterableList]`` - if non-`None` and
-            containing the single value ``True``, the output dictionary will contain antecedent
+            any contained value is ``True``, the output dictionary will contain antecedent
             scores.
 
         Returns
@@ -152,7 +152,7 @@ class CoreferenceResolver(Model):
             matrix whose the j-th row contains the antecedent scores for the j-th mention of that
             batch (corresponding to top_spans), and k-th column contains the score for
             the (k-1)-th mention being the antecedent of the j-th mention. The first column
-            (index 0) contains the score for the j-th mention having no antecedent.
+            (index k = 0) contains the score for the j-th mention having no antecedent.
         loss : ``torch.FloatTensor``, optional
             A scalar loss to be optimised.
         """

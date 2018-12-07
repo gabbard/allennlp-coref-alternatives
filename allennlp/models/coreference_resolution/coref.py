@@ -131,7 +131,7 @@ class CoreferenceResolver(Model):
             of each span, or -1 for those which do not appear in any clusters.
         output_alternative_antecedents: ``Optional[ScatterableList]`` - if non-`None` and
             any contained value is ``True``, the output dictionary will contain antecedent
-            scores.
+            scores and antecedent_mask (see below).
 
         Returns
         -------
@@ -147,12 +147,19 @@ class CoreferenceResolver(Model):
             index (with respect to antecedent_indices) of the most likely antecedent. -1 means there
             was no predicted link.
         antecedent_scores : ``torch.FloatTensor``, optional
-            A tensor of shape ``(batch_size, num_spans_to_keep, 1 + max_antecedents)`` giving
+            A tensor of shape ``(batch_size, num_spans_to_keep, max_antecedents+1)`` giving
             the antecedent scores for each mention.  Each i-th batch element is associated with a
             matrix whose the j-th row contains the antecedent scores for the j-th mention of that
             batch (corresponding to top_spans), and k-th column contains the score for
-            the (k-1)-th mention being the antecedent of the j-th mention. The first column
-            (index k = 0) contains the score for the j-th mention having no antecedent.
+            the antecedent_indices[k - 1]-th mention being the antecedent of the j-th mention.
+            The first column (index k = 0) contains the score for the j-th mention having
+            no antecedent.
+        antecedent_mask : ``torch.FloatTensor``, optional
+            A tensor of shape ``(batch_size, num_spans_to_keep, max_antecedent)``.  The (i, j)-th
+            entry will be 1 if the (i, j)-th entry of `antecedent_scores` gives valid antecedent
+            score and 0 otherwise. This is necessary because, for example, the first mention of a
+            document has no antecedents to score.
+
         loss : ``torch.FloatTensor``, optional
             A scalar loss to be optimised.
         """
@@ -261,11 +268,20 @@ class CoreferenceResolver(Model):
         # is greater than -1.
         predicted_antecedents -= 1
 
+        batch_size = top_spans.shape[0]
         output_dict = {"top_spans": top_spans,
-                       "antecedent_indices": valid_antecedent_indices,
+                       # because antecedent_indices is the same for all batch elements (since it
+                       # doesn't depend on the batch content), we need to expand it to have
+                       # batch_size as its first dimension or else model.forward_on_instances
+                       # will discard it
+                       "antecedent_indices": valid_antecedent_indices.expand(
+                           batch_size, valid_antecedent_indices.shape[0],
+                           valid_antecedent_indices.shape[1]
+                       ),
                        "predicted_antecedents": predicted_antecedents}
         if keep_antecedent_alternatives and any(keep_antecedent_alternatives):
             output_dict["antecedent_scores"] = coreference_scores
+            output_dict["antecedent_mask"] = (valid_antecedent_log_mask >= 0)
 
         if span_labels is not None:
             # Find the gold labels for the spans which we kept.
@@ -337,7 +353,10 @@ class CoreferenceResolver(Model):
         # A tensor of shape (num_spans_to_keep, max_antecedents), representing the indices
         # of the predicted antecedents with respect to the 2nd dimension of ``batch_top_spans``
         # for each antecedent we considered.
-        antecedent_indices = output_dict["antecedent_indices"].detach().cpu()
+        # we access index 0 because we expanded this to have a first dimension of batch_size in
+        # forward() so that model.forward_on_instances will pass it back to the original caller
+        # all of the batch_size rows are identical
+        antecedent_indices = output_dict["antecedent_indices"].detach().cpu()[0]
         batch_clusters: List[List[List[Tuple[int, int]]]] = []
 
         # Calling zip() on two tensors results in an iterator over their

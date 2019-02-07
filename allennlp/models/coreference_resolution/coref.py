@@ -195,7 +195,8 @@ class CoreferenceResolver(Model):
         span_embeddings = torch.cat([endpoint_span_embeddings, attended_span_embeddings], -1)
 
         # Prune based on mention scores.
-        num_spans_to_keep = int(math.floor(self._spans_per_word * document_length))
+        num_spans_to_keep = min(num_spans,
+                                int(math.floor(self._spans_per_word * document_length)))
 
         (top_span_embeddings, top_span_mask,
          top_span_indices, top_span_mention_scores) = self._mention_pruner(span_embeddings,

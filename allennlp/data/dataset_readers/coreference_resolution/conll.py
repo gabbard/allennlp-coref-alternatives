@@ -1,6 +1,6 @@
 import logging
 import collections
-from typing import Any, Dict, List, Optional, Tuple, DefaultDict, Set
+from typing import Any, Dict, List, Optional, Tuple, DefaultDict, Set, Sequence
 
 from overrides import overrides
 
@@ -105,17 +105,23 @@ class ConllCorefReader(DatasetReader):
     @overrides
     def text_to_instance(self,  # type: ignore
                          sentences: List[List[str]],
-                         gold_clusters: Optional[List[List[Tuple[int, int]]]] = None) -> Instance:
-        # pylint: disable=arguments-differ
+                         gold_clusters: Optional[List[List[Tuple[int, int]]]] = None,
+                         *,
+                         mention_token_spans: Optional[Sequence[Tuple[int, int]]]=None
+                         ) -> Instance:          # pylint: disable=arguments-differ
         """
         Parameters
         ----------
         sentences : ``List[List[str]]``, required.
-            A list of lists representing the tokenised words and sentences in the document.
+            A list of lists representing the tokenized words and sentences in the document.
         gold_clusters : ``Optional[List[List[Tuple[int, int]]]]``, optional (default = None)
             A list of all clusters in the document, represented as word spans. Each cluster
             contains some number of spans, which can be nested and overlap, but will never
             exactly match between clusters.
+        mention_token_spans: optional
+            A Sequence of spans which should be consider for coref. This will override
+            the usual behavior of including all spans up to the maximum width.  The spans should
+            be specified in terms of token indices with inclusive end token indices.
 
         Returns
         -------
@@ -147,24 +153,34 @@ class ConllCorefReader(DatasetReader):
                 for mention in cluster:
                     cluster_dict[tuple(mention)] = cluster_id
 
-        spans: List[Field] = []
+        span_fields: List[Field] = []
         span_labels: Optional[List[int]] = [] if gold_clusters is not None else None
 
-        sentence_offset = 0
-        for sentence in sentences:
-            for start, end in enumerate_spans(sentence,
-                                              offset=sentence_offset,
-                                              max_span_width=self._max_span_width):
-                if span_labels is not None:
-                    if (start, end) in cluster_dict:
-                        span_labels.append(cluster_dict[(start, end)])
-                    else:
-                        span_labels.append(-1)
+        if mention_token_spans is None:
+            # every possible span in the document up to a certain maximum size is a
+            # mention candidate
+            sentence_offset = 0
+            for sentence in sentences:
+                for start, end in enumerate_spans(sentence,
+                                                  offset=sentence_offset,
+                                                  max_span_width=self._max_span_width):
+                    if span_labels is not None:
+                        if (start, end) in cluster_dict:
+                            span_labels.append(cluster_dict[(start, end)])
+                        else:
+                            span_labels.append(-1)
 
-                spans.append(SpanField(start, end, text_field))
-            sentence_offset += len(sentence)
+                    span_fields.append(SpanField(start, end, text_field))
+                sentence_offset += len(sentence)
+        else:
+            if span_labels is not None:
+                raise NotImplementedError("We currently don't handle known mentions plus "
+                                          "gold labels")
+            # the mentions spans are already known; we just need to make SpanFields for them
+            span_fields = [SpanField(start, end, text_field)
+                           for (start, end) in mention_token_spans]
 
-        span_field = ListField(spans)
+        span_field = ListField(span_fields)
         metadata_field = MetadataField(metadata)
 
         fields: Dict[str, Field] = {"text": text_field,

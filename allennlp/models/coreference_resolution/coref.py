@@ -173,7 +173,8 @@ class CoreferenceResolver(Model):
         text_mask = util.get_text_field_mask(text).float()
 
         # Shape: (batch_size, num_spans)
-        span_mask = (spans[:, :, 0] >= 0).squeeze(-1).float()
+        span_mask = (spans[:, :, 0] >= 0).squeeze(-1).reshape((spans.shape[0], spans.shape[1])) \
+            .float()
         # SpanFields return -1 when they are used as padding. As we do
         # some comparisons based on span widths when we attend over the
         # span representations that we generate from these indices, we
